@@ -31,7 +31,7 @@ $$r_{t+1} = -dc_v^{t+1} + (Q_v^t<0)$$
 
 * [`critic.py`](lib/critic.py) — critic arch, including TD objective
 
-* [`model.py`](lib/models.py) — model perceptron, including its layers, architecture and etc
+* [`model.py`](lib/model.py) — model perceptron, including its layers, architecture and etc
 
 * [`policy.py`](lib/policy.py) — actor arch, including surrogate objective
 
@@ -39,7 +39,7 @@ $$r_{t+1} = -dc_v^{t+1} + (Q_v^t<0)$$
 
 * [`system.py`](lib/system.py) — systems for simulating data or processing real historical data
 
-* [`utils.py`](lib/utils.py) — usefull functions: data buffers, optimizers and etc
+* [`util.py`](lib/util.py) — usefull functions: data buffers, optimizers and etc
 
 
 ## Prerequisites
@@ -66,7 +66,7 @@ python actor_critic_historical.py actor_critic_historical_params.yaml data.parqu
 
 ## Results
 
-We succeded to beat TWAP results in execution in simulated market. In real market improvement compared with TWAP baseline is quite small for now, but we believe it can be improved by hyperparameters tuning
+We succeded to beat TWAP results in execution in both simulated and real markets.
 
 ### Simulated market
 
