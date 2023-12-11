@@ -1,0 +1,35 @@
+HistoricalMarketSystem:
+  tpi:            0.1
+  ppi:            0.01
+  volatility:     1
+  tc:             0.
+Historical_EM_Simulator:
+  N_steps :     1000
+  step_size:    0.001
+discount_factor: 0.999
+GaussianPDFModelCus:
+  n_hidden_layers: 4
+  scale_factor:    50
+  dim_hidden:      5
+  std:             0.05
+  action_bounds_l: 0.
+  action_bounds_u: 1.5
+ModelPerceptron:
+  dim_output:      1
+  dim_hidden:      5
+  n_hidden_layers: 5
+OptimizerSampledCritic:
+  n_epochs: 15
+  opt_options:
+    lr:     0.003
+OptimizerSampledPolicy:
+  opt_options:
+    lr:     0.003
+Critic:
+  td_n:     8
+MonteCarloSimulationScenarioTrain:
+  N_episodes:   6
+  N_iterations: 7
+MonteCarloSimulationScenarioTest:
+  N_episodes:   6
+  N_iterations: 1
