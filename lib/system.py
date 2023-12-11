@@ -91,40 +91,35 @@ class HistoricalMarketSystem:
     """System class: historical market. State transition function"""
 
     dim_action: int = 1
-    dim_observation: int = 5
-    dim_state: int = 5
-
-    b: float = 0.01
-    sigma: float = 0.3
-    k: float = 0.1
-
-    def __init__(self, data, tpi, ppi, volatility, tc) -> None:
+    dim_observation: int = 4
+    dim_state: int = 4
+    
+    def __init__(self, data, N_steps, tc, inventory_risk) -> None:
         """Initialize `MarketSystem`"""
-        self.b = ppi
-        self.k = tpi
-        self.sigma = volatility
         self.tc = tc
+        self.rho = inventory_risk
         self.data = data
+        self.N_steps = N_steps,
         self.reset()
-        self.executed_price = 25000
-        self.last_executed_price = 25000
+        self.executed_price = 1
+        self.last_executed_price = 1
         self.episode_idx = 0
         self.action = np.zeros(2)
 
     def executed_price_calc(self, step_idx, action):
         bids_qtys = np.array([
-            self.data.iloc[step_idx + 1000 * self.episode_idx]["bid_1_qty"],
-            self.data.iloc[step_idx + 1000 * self.episode_idx]["bid_2_qty"],
-            self.data.iloc[step_idx + 1000 * self.episode_idx]["bid_3_qty"],
-            self.data.iloc[step_idx + 1000 * self.episode_idx]["bid_4_qty"],
-            self.data.iloc[step_idx + 1000 * self.episode_idx]["bid_5_qty"],
+            self.data.iloc[step_idx + self.N_steps[0] * self.episode_idx]["bid_1_qty"],
+            self.data.iloc[step_idx + self.N_steps[0] * self.episode_idx]["bid_2_qty"],
+            self.data.iloc[step_idx + self.N_steps[0] * self.episode_idx]["bid_3_qty"],
+            self.data.iloc[step_idx + self.N_steps[0] * self.episode_idx]["bid_4_qty"],
+            self.data.iloc[step_idx + self.N_steps[0] * self.episode_idx]["bid_5_qty"],
         ]).cumsum()
         bids_prices = np.array([
-            self.data.iloc[step_idx + 1000 * self.episode_idx]["bid_1_px"],
-            self.data.iloc[step_idx + 1000 * self.episode_idx]["bid_2_px"],
-            self.data.iloc[step_idx + 1000 * self.episode_idx]["bid_3_px"],
-            self.data.iloc[step_idx + 1000 * self.episode_idx]["bid_4_px"],
-            self.data.iloc[step_idx + 1000 * self.episode_idx]["bid_5_px"],
+            self.data.iloc[step_idx + self.N_steps[0] * self.episode_idx]["bid_1_px"],
+            self.data.iloc[step_idx + self.N_steps[0] * self.episode_idx]["bid_2_px"],
+            self.data.iloc[step_idx + self.N_steps[0] * self.episode_idx]["bid_3_px"],
+            self.data.iloc[step_idx + self.N_steps[0] * self.episode_idx]["bid_4_px"],
+            self.data.iloc[step_idx + self.N_steps[0] * self.episode_idx]["bid_5_px"],
         ])
         executed_at_level = np.argmax(bids_qtys - action > -1e-4)
         if action > bids_qtys[-1]:
@@ -143,20 +138,17 @@ class HistoricalMarketSystem:
         Dstate = np.zeros((self.dim_observation,2))
         
         if term:
-            action = state[0] / step_size 
+            action = state[0] / step_size
 
         Dstate[0] = -action * step_size
         ### executed price
         if step_idx == 0:
             Dstate[1] = 0
         else:
-            Dstate[1] = self.data["mid_price"].iloc[step_idx + 1000 * self.episode_idx] - self.data["mid_price"].iloc[step_idx + 1000 * self.episode_idx-1]
+            Dstate[1] = (self.data["mid_price"].iloc[step_idx + self.N_steps[0] * self.episode_idx] - self.data["mid_price"].iloc[step_idx + self.N_steps[0] * self.episode_idx-1])/self.data["mid_price"].iloc[0+ self.N_steps[0] * self.episode_idx]
         ### cash
-        Dstate[2] = ((state[1] + Dstate[1]) - self.k * np.abs(action)**0.5 ) * action * step_size - np.abs( action * step_size) * self.tc
-        
-        Dstate[3] = self.executed_price - self.last_executed_price
-        Dstate[4] = ((state[1] + Dstate[3]) - self.k * np.abs(action)**0.5 ) * action * step_size - np.abs( action * step_size) * self.tc
-
+        Dstate[2] = ((state[1] + Dstate[1]+(self.executed_price - self.data["mid_price"].iloc[step_idx + self.N_steps[0] * self.episode_idx])/self.data["mid_price"].iloc[0+ self.N_steps[0] * self.episode_idx])) * action * step_size - np.abs( action * step_size) * self.tc - self.rho*(state[0]+Dstate[0])**2
+        Dstate[3] = -step_size
         return Dstate
     
 

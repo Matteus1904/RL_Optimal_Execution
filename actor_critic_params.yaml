@@ -30,7 +30,7 @@ Critic:
   td_n:     8
 MonteCarloSimulationScenarioTrain:
   N_episodes:   6
-  N_iterations: 15
+  N_iterations: 16
 MonteCarloSimulationScenarioTest:
-  N_episodes:   10
+  N_episodes:   40
   N_iterations: 1

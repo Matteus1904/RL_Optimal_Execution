@@ -76,18 +76,10 @@ class MonteCarloSimulationScenario:
         Returns:
             float: running cost value
         """
-        asset = observation[0]
-        ideal_price = observation[1]
-        ideal_cash = observation[2]
-        real_price = observation[3]
-        real_cash = observation[4]
 
-        cost = asset ** 2 * (asset > 0) # left overs
-        cost += 1000 * (asset ** 2) * (asset < 0) # prevent shorts
-        cost += action[0] ** 2
-        cost -= real_cash
-
-        return cost
+        return -(observation[1] -0.001*action[0]) * action[0] +(observation[0] <0)
+    
+    
 
     def run(self) -> None:
         """Run main loop"""
@@ -103,7 +95,11 @@ class MonteCarloSimulationScenario:
                 toe1 = []
                 twap1 = []
                 terminated = False
-                while self.simulator.step(episode_idx):
+                if self.train_mode:
+                    r_episode_idx = np.random.randint(len(system.data)//system.N_steps[0] - 1, size = 1)[0]
+                else:
+                    r_episode_idx = episode_idx
+                while self.simulator.step(r_episode_idx):
                     (
                         observation,
                         action,
@@ -146,7 +142,7 @@ class MonteCarloSimulationScenario:
                         )
                     self.system.receive_action(np.hstack((new_action,np.array([1 / (simulator.step_size * simulator.N_steps)]))))
                     toe1.append(running_cost)
-                    twap1.append(observation[[2,4],1])
+                    twap1.append(observation[[2],1])
                 self.simulator.reset()
                 toe.append(toe1)
                 twap.append(twap1)
@@ -175,8 +171,7 @@ class MonteCarloSimulationScenario:
                 + f"mean total cost {round(means_total_costs[-1], 2)}, "
                 + f"% change: {sign}{abs(round(change,2))}, "
                 + f"last observation: {self.last_observations.groupby(self.last_observations.index).last().mean().values}, "
-                + f"TWAP cash: {np.array(scenario.twap).mean(axis=0)[-1][0]:.3f}"
-                + f"cash TWAP slippage: {np.array(scenario.twap).mean(axis=0)[-1][1]:.3f}"
+                + f"TWAP cash: {np.array(self.twap).mean(axis=0)[-1][0]:.3f}"
                 ,
                 end="\n",
             )
@@ -215,24 +210,22 @@ class MonteCarloSimulationScenario:
         plt.show()
         N_steps = len(self.last_actions)//self.N_episodes
         self.last_observations.index = np.arange(N_steps).tolist()*self.N_episodes
-        asset_ax, ideal_price_ax, ideal_cash_ax, real_price_ax, real_cash_ax = pd.DataFrame(
-            data = scenario.last_observations.groupby(scenario.last_observations.index).mean().values,
-        columns = ['position', 'price', 'cash RL', 'price slippage', 'cash RL slippage']
+        asset_ax, real_price_ax, real_cash_ax, time_ax = pd.DataFrame(
+            data = self.last_observations.groupby(self.last_observations.index).mean().values,
+        columns = ['position', 'price', 'cash RL', 'time']
             ).plot(
             xlabel="Step Number",
             title="Mean observations in last iteration",
             subplots=True,
             grid=True,
             )
-        asset_ax.set_ylabel("asset_qty")
-        ideal_price_ax.set_ylabel("ideal_price")
-        ideal_cash_ax.set_ylabel("ideal_cash")
-        real_price_ax.set_ylabel("real_price")
-        real_cash_ax.set_ylabel("real_cash")
-        
-        tw_data = pd.DataFrame(data = np.array(self.twap).mean(axis = 0), columns = ['cash TWAP','cash TWAP slippage'])    
-        tw_data[['cash TWAP']].plot(ax=ideal_cash_ax) 
-        tw_data[['cash TWAP slippage']].plot(ax=real_cash_ax)
+        asset_ax.set_ylabel("normalized position")
+        real_price_ax.set_ylabel("normalized price")
+        real_cash_ax.set_ylabel("normalized cash")
+        time_ax.set_ylabel("time left")
+        real_price_ax.set_ylim(0.9995, 1.0005)
+        tw_data = pd.DataFrame(data = np.array(self.twap).mean(axis = 0), columns = ['cash TWAP'])    
+        tw_data[['cash TWAP']].plot(ax=real_cash_ax)
 
         
         self.last_actions.index = np.arange(N_steps).tolist()*self.N_episodes
@@ -269,11 +262,6 @@ if __name__=='__main__':
     with open(args.path_to_config,'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
     
-    SEED = 14
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    random.seed(SEED)
-    
     data = pd.read_parquet(args.path_to_data)
 
     columns = ['mid_price', 'bid_1_px', 'bid_1_qty', 'bid_2_qty',
@@ -285,19 +273,29 @@ if __name__=='__main__':
     for column in columns:
         data[column] = data[column].astype(float)
     
-    system = HistoricalMarketSystem(data=data,**config['HistoricalMarketSystem'])
+    train_data = data[:100000]
+    test_data = data[100000:]
+    
+    SEED = 0xC0FFEE
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+    random.seed(SEED)
+
+    system = HistoricalMarketSystem(data=train_data, N_steps=config['Historical_EM_Simulator']['N_steps'], **config['HistoricalMarketSystem'])
+
     simulator = Historical_EM_Simulator(
-        system, 
-        state_init=np.array([
-        [1.,data["bid_1_px"].iloc[0],0,data["bid_1_px"].iloc[0],0,],
-        [1.,data["bid_1_px"].iloc[0],0,data["bid_1_px"].iloc[0],0,]]).T,
-        **config['Historical_EM_Simulator']
+        system, state_init=np.array([
+            [1.,1,0, 1.001],
+            [1.,1,0, 1.001]]).T,
+            **config['Historical_EM_Simulator']
     )
+
     discount_factor = config['discount_factor']
     config['GaussianPDFModelCus']['action_bounds'] = np.array([[config['GaussianPDFModelCus']['action_bounds_l'],
                                                                 config['GaussianPDFModelCus']['action_bounds_u']]])
     del config['GaussianPDFModelCus']['action_bounds_l']
     del config['GaussianPDFModelCus']['action_bounds_u']
+
     model = GaussianPDFModelCus(
         dim_observation=system.dim_observation,
         dim_action=system.dim_action,
@@ -307,31 +305,36 @@ if __name__=='__main__':
         dim_input=system.dim_observation,
         **config['ModelPerceptron']
     )
+
     critic_optimizer = OptimizerSampled(
         model=critic_model,
         opt_method=torch.optim.Adam,
         is_reinstantiate_optimizer=True,
         **config['OptimizerSampledCritic']
     )
+
     critic = Critic(
-        td_n=8,
+        td_n=config['Critic']['td_n'],
         discount_factor=discount_factor,
         device="cpu",
         model=critic_model,
         optimizer=critic_optimizer,
     )
+
     policy_optimizer = OptimizerSampled(
         model=model,
         opt_method=torch.optim.Adam,
         is_reinstantiate_optimizer=False,
         **config['OptimizerSampledPolicy']
     )
+
     policy = Policy(
         model,
         policy_optimizer,
         critic=critic,
         discount_factor=discount_factor,
     )
+
     # This termination criterion never terminates episodes
     trivial_terminantion_criterion = lambda *args: False
 
@@ -358,12 +361,17 @@ if __name__=='__main__':
     print('Train Final average CASH:', scenario.last_observations.groupby(scenario.last_observations.index).mean()[2].values[-1])
     
     print('Train TWAP final mean cash:', np.array(scenario.twap).mean(axis=0)[-1][0])
-    print('Train TWAP final mean slippage cash:', np.array(scenario.twap).mean(axis=0)[-1][1])
-    
-    SEED = 14
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    random.seed(SEED)
+
+
+
+    system = HistoricalMarketSystem(data=train_data, N_steps=config['Historical_EM_Simulator']['N_steps'], **config['HistoricalMarketSystem'])
+
+    simulator = Historical_EM_Simulator(
+        system, state_init=np.array([
+            [1.,1,0, 1.001],
+            [1.,1,0, 1.001]]).T,
+            **config['Historical_EM_Simulator']
+    )
     
     scenario2 = MonteCarloSimulationScenario(
         train_mode=False,
@@ -383,6 +391,5 @@ if __name__=='__main__':
 
     scenario2.plot_data()
     
-    print('Test Final average CASH:', scenario2.last_observations.groupby(scenario.last_observations.index).mean()[2].values[-1])
+    print('Test Final average CASH:', scenario2.last_observations.groupby(scenario2.last_observations.index).mean()[2].values[-1])
     print('Test TWAP Final average CASH:', np.array(scenario2.twap).mean(axis=0)[-1][0])
-    print('Test TWAP Final average slippage CASH:', np.array(scenario2.twap).mean(axis=0)[-1][1])

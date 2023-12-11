@@ -249,7 +249,7 @@ if __name__=='__main__':
     args = parser.parse_args()
     with open(args.path_to_config,'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
-    
+
     SEED = 0xC0FFEE
     np.random.seed(SEED)
     torch.manual_seed(SEED)
@@ -265,6 +265,7 @@ if __name__=='__main__':
                                                                 config['GaussianPDFModelCus']['action_bounds_u']]])
     del config['GaussianPDFModelCus']['action_bounds_l']
     del config['GaussianPDFModelCus']['action_bounds_u']
+
     model = GaussianPDFModelCus(
         dim_observation=system.dim_observation,
         dim_action=system.dim_action,
@@ -281,7 +282,7 @@ if __name__=='__main__':
         **config['OptimizerSampledCritic']
     )
     critic = Critic(
-        td_n=8,
+        td_n=config['Critic']['td_n'],
         discount_factor=discount_factor,
         device="cpu",
         model=critic_model,
@@ -324,10 +325,6 @@ if __name__=='__main__':
     
     print('Train TWAP final mean cash:', pd.DataFrame(scenario.twap).mean().iloc[-1])
     
-    SEED = 0xC0FFEE
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    random.seed(SEED)
     scenario2 = MonteCarloSimulationScenario(
         train_mode=False,
         simulator=simulator,

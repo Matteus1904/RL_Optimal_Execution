@@ -1,12 +1,10 @@
 HistoricalMarketSystem:
-  tpi:            0.1
-  ppi:            0.01
-  volatility:     1
-  tc:             0.
+  tc:             0.01
+  inventory_risk: 0.001
 Historical_EM_Simulator:
   N_steps :     1000
   step_size:    0.001
-discount_factor: 0.999
+discount_factor: 0.99
 GaussianPDFModelCus:
   n_hidden_layers: 4
   scale_factor:    50
@@ -21,15 +19,15 @@ ModelPerceptron:
 OptimizerSampledCritic:
   n_epochs: 15
   opt_options:
-    lr:     0.003
+    lr:     0.045
 OptimizerSampledPolicy:
   opt_options:
-    lr:     0.003
+    lr:     0.045
 Critic:
   td_n:     8
 MonteCarloSimulationScenarioTrain:
   N_episodes:   6
-  N_iterations: 7
+  N_iterations: 14
 MonteCarloSimulationScenarioTest:
-  N_episodes:   6
+  N_episodes:   40
   N_iterations: 1
